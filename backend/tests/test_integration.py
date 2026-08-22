@@ -59,3 +59,17 @@ def test_integration_deterministic_output(tmp_path):
     assert first.settlements == second.settlements
     assert first.orders == second.orders
     assert first.refunds == second.refunds
+
+
+def test_stress_runner_small_configuration():
+    import stress_test
+
+    result = stress_test.run_single(40, 42)
+
+    assert result.records == 40
+    assert result.precision == 1.0
+    assert result.recall == 1.0
+    assert result.false_match_rate == 0.0
+    assert result.false_alarms == 0
+    assert result.detected_exceptions == result.injected_exceptions
+    assert result.detected_breakdown == result.injected_breakdown

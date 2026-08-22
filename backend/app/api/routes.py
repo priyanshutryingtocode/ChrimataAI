@@ -63,6 +63,7 @@ def service_info() -> ServiceInfoModel:
             "/api/batches/{batch_id}",
             "/api/batches/{batch_id}/reconcile",
             "/api/batches/{batch_id}/metrics",
+            "/api/batches/{batch_id}/results",
             "/api/batches/{batch_id}/exceptions",
             "/api/controller/query",
         ],
@@ -354,6 +355,38 @@ def get_metrics(batch_id: str, db: Session = Depends(get_db)) -> MetricsModel:
         )
 
     return MetricsModel(**payload)
+
+
+@router.get("/api/batches/{batch_id}/results", response_model=ExceptionsPageModel)
+def get_results(
+    batch_id: str,
+    status: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> ExceptionsPageModel:
+    _get_batch_or_404(db, batch_id)
+
+    filters = [TransactionResultRow.batch_id == batch_id]
+    if status is not None:
+        normalized = status.strip().upper()
+        if normalized not in ("MATCHED", "EXCEPTION"):
+            raise HTTPException(status_code=422, detail=f"status must be MATCHED or EXCEPTION, got: {status}")
+        filters.append(TransactionResultRow.status == normalized)
+
+    base_query = select(TransactionResultRow).where(*filters)
+    total = db.scalar(select(func.count()).select_from(base_query.subquery())) or 0
+    rows = db.scalars(
+        base_query.order_by(
+            TransactionResultRow.variance_abs_paise.desc(),
+            TransactionResultRow.status.desc(),
+            TransactionResultRow.transaction_id.asc(),
+        )
+        .offset(offset)
+        .limit(limit)
+    ).all()
+
+    return ExceptionsPageModel(total=total, items=[_row_to_result_model(row) for row in rows])
 
 
 @router.get("/api/batches/{batch_id}/exceptions", response_model=ExceptionsPageModel)

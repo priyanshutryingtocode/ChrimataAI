@@ -13,9 +13,14 @@ backend/data/generated/
 backend/data/ground_truth/
 backend/data/batches/
 backend/data/*.db
+backend/data/reports/
 
 # OS / editor noise
 .DS_Store
 Thumbs.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
 
 .pytest_cache

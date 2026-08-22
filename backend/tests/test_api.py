@@ -71,6 +71,34 @@ def test_full_batch_flow(client):
     assert bad_type.status_code == 422
 
 
+def test_results_endpoint_filters_and_pagination(client):
+    batch = helpers.upload_and_reconcile(client, records=40, seed=42)
+    metrics = client.get(f"/api/batches/{batch['id']}/metrics").json()
+
+    all_rows = client.get(f"/api/batches/{batch['id']}/results", params={"limit": 500}).json()
+    assert all_rows["total"] == metrics["total_records"]
+
+    matched_rows = client.get(f"/api/batches/{batch['id']}/results", params={"status": "MATCHED", "limit": 500}).json()
+    assert matched_rows["total"] == metrics["matched_records"]
+    assert all(item["status"] == "MATCHED" for item in matched_rows["items"])
+
+    exception_rows = client.get(
+        f"/api/batches/{batch['id']}/results", params={"status": "EXCEPTION", "limit": 500}
+    ).json()
+    assert exception_rows["total"] == metrics["exception_records"]
+    assert exception_rows["total"] > 0
+
+    paged = client.get(f"/api/batches/{batch['id']}/results", params={"limit": 5, "offset": 0}).json()
+    assert len(paged["items"]) == 5
+    paged_two = client.get(f"/api/batches/{batch['id']}/results", params={"limit": 5, "offset": 5}).json()
+    first_ids = {item["transaction_id"] for item in paged["items"]}
+    second_ids = {item["transaction_id"] for item in paged_two["items"]}
+    assert not first_ids & second_ids
+
+    bad_status = client.get(f"/api/batches/{batch['id']}/results", params={"status": "WEIRD"})
+    assert bad_status.status_code == 422
+
+
 def test_upload_rejects_bad_headers(client):
     payments = ("payments.csv", b"wrong,header\n1,2\n", "text/csv")
     settlements = ("settlements.csv", b"x\ny\n", "text/csv")
