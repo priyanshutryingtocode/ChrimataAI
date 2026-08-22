@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     database_url: str = ""
     llm_api_key: str = ""
-    llm_model: str = ""
+    llm_model: str = "gemini-2.5-flash"
     frontend_url: str = "http://localhost:5173"
 
 

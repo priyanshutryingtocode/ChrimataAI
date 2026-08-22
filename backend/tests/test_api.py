@@ -1,71 +1,29 @@
 from __future__ import annotations
 
 import sys
-from decimal import Decimal
 from pathlib import Path
 
 import generate_data
 import pytest
-from fastapi.testclient import TestClient
-
-from app.core.database import get_db, SessionLocal
-from app.main import app
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import helpers
+
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch):
-    from app.core import database
+def client(tmp_path):
+    test_client, _ = helpers.make_test_client(tmp_path)
+    yield test_client
+    helpers.release_test_client()
 
-    test_db_url = f"sqlite:///{(tmp_path / 'test.db').as_posix()}"
-    test_engine = database.create_engine(test_db_url, future=True)
-    database.Base.metadata.create_all(bind=test_engine)
-    testing_session = database.sessionmaker(bind=test_engine, autoflush=False, expire_on_commit=False, future=True)
 
-    def override_get_db():
-        db = testing_session()
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
-    app.dependency_overrides.clear()
+def upload_batch(client, files) -> dict:
+    return helpers.upload_batch(client, files)
 
 
 def make_dataset_files(records: int = 40, seed: int = 42):
-    dataset = generate_data.generate_dataset(records, seed)
-    files = {
-        "orders": ("orders.csv", _to_csv(generate_data.ORDER_FIELDS, dataset.orders), "text/csv"),
-        "payments": ("payments.csv", _to_csv(generate_data.PAYMENT_FIELDS, dataset.payments), "text/csv"),
-        "settlements": ("settlements.csv", _to_csv(generate_data.SETTLEMENT_FIELDS, dataset.settlements), "text/csv"),
-        "refunds": ("refunds.csv", _to_csv(generate_data.REFUND_FIELDS, dataset.refunds), "text/csv"),
-        "ground_truth": (
-            "ground_truth.csv",
-            _to_csv(generate_data.GROUND_TRUTH_FIELDS, dataset.ground_truth),
-            "text/csv",
-        ),
-    }
-    return files
-
-
-def _to_csv(fields: list[str], rows: list[dict[str, str]]) -> bytes:
-    lines = [",".join(fields)]
-    for row in rows:
-        lines.append(",".join(row[field] for field in fields))
-    return ("\n".join(lines) + "\n").encode("utf-8")
-
-
-def upload_batch(client: TestClient, files) -> dict:
-    response = client.post(
-        "/api/batches/upload",
-        data={"name": "test batch"},
-        files={key: value for key, value in files.items()},
-    )
-    assert response.status_code == 200, response.text
-    return response.json()
+    return helpers.make_dataset_files(records, seed)
 
 
 def test_full_batch_flow(client):
@@ -99,9 +57,7 @@ def test_full_batch_flow(client):
     assert metrics["exception_recall"] == pytest.approx(1.0)
     assert metrics["false_match_rate"] == pytest.approx(0.0)
 
-    exceptions = client.get(
-        f"/api/batches/{batch['id']}/exceptions", params={"limit": 5}
-    ).json()
+    exceptions = client.get(f"/api/batches/{batch['id']}/exceptions", params={"limit": 5}).json()
     injected = sum(1 for row in files["ground_truth"][1].decode().splitlines()[1:] if ",EXCEPTION," in row)
     assert exceptions["total"] == injected
     assert len(exceptions["items"]) <= 5
@@ -111,9 +67,7 @@ def test_full_batch_flow(client):
     ).json()
     assert all(item["exception_type"] == "AMOUNT_MISMATCH" for item in filtered["items"])
 
-    bad_type = client.get(
-        f"/api/batches/{batch['id']}/exceptions", params={"exception_type": "NOT_A_TYPE"}
-    )
+    bad_type = client.get(f"/api/batches/{batch['id']}/exceptions", params={"exception_type": "NOT_A_TYPE"})
     assert bad_type.status_code == 422
 
 

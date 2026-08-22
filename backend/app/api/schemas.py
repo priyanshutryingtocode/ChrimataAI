@@ -68,6 +68,22 @@ class ExceptionsPageModel(BaseModel):
     items: list[ReconciliationResultModel] = Field(default_factory=list)
 
 
+class ControllerQueryRequest(BaseModel):
+    batch_id: str
+    question: str = Field(min_length=1, max_length=1000)
+
+
+class ControllerAnswerModel(BaseModel):
+    kind: str
+    answer: str
+    confirmed_facts: list[str] = Field(default_factory=list)
+    probable_explanations: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+    key_figures: dict[str, str] = Field(default_factory=dict)
+    cited_transactions: list[str] = Field(default_factory=list)
+    source: str
+
+
 def to_result_model(result: TransactionResult) -> ReconciliationResultModel:
     return ReconciliationResultModel(
         transaction_id=result.transaction_id,

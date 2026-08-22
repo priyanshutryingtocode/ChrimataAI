@@ -13,11 +13,14 @@ from sqlalchemy.orm import Session
 
 from app.api.schemas import (
     BatchModel,
+    ControllerAnswerModel,
+    ControllerQueryRequest,
     ExceptionsPageModel,
     MetricsModel,
     ReconciliationResultModel,
     ServiceInfoModel,
 )
+from app.agent.controller import run_controller_query
 from app.core.config import DATA_DIR, settings
 from app.core.database import get_db
 from app.models.batch import Batch, TransactionResultRow, utc_now
@@ -50,7 +53,7 @@ REQUIRED_COLUMNS: dict[str, list[str]] = {
 def service_info() -> ServiceInfoModel:
     return ServiceInfoModel(
         service="AI Finance Controller",
-        version="0.2.0",
+        version="0.3.0",
         app_env=settings.app_env,
         endpoints=[
             "/",
@@ -61,6 +64,7 @@ def service_info() -> ServiceInfoModel:
             "/api/batches/{batch_id}/reconcile",
             "/api/batches/{batch_id}/metrics",
             "/api/batches/{batch_id}/exceptions",
+            "/api/controller/query",
         ],
     )
 
@@ -68,6 +72,31 @@ def service_info() -> ServiceInfoModel:
 @router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.post("/api/controller/query", response_model=ControllerAnswerModel)
+def controller_query(payload: ControllerQueryRequest, db: Session = Depends(get_db)) -> ControllerAnswerModel:
+    answer = run_controller_query(db, payload.batch_id.strip(), payload.question.strip())
+    if answer is None:
+        batch = db.get(Batch, payload.batch_id.strip())
+        if batch is None:
+            raise HTTPException(status_code=404, detail=f"Batch {payload.batch_id} not found")
+        if batch.status != "RECONCILED":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Batch {payload.batch_id} has not been reconciled yet",
+            )
+        raise HTTPException(status_code=500, detail="Query could not be processed")
+    return ControllerAnswerModel(
+        kind=answer.kind,
+        answer=answer.answer,
+        confirmed_facts=answer.confirmed_facts,
+        probable_explanations=answer.probable_explanations,
+        recommendations=answer.recommendations,
+        key_figures=answer.key_figures,
+        cited_transactions=answer.cited_transactions,
+        source=answer.source,
+    )
 
 
 def _batch_dir(batch_id: str) -> Path:

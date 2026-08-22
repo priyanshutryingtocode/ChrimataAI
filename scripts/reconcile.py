@@ -2,34 +2,16 @@ from __future__ import annotations
 
 import argparse
 import sys
-from decimal import Decimal
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+from app.core.formatting import format_inr
 from app.reconciliation.engine import run_reconciliation
-from app.reconciliation.exceptions import ExceptionType
 from app.reconciliation.metrics import evaluate
 from app.reconciliation.normalize import load_ground_truth, load_source_data
-
-
-def format_inr(value: Decimal) -> str:
-    sign = "-" if value < 0 else ""
-    quantized = abs(value).quantize(Decimal("0.01"))
-    digits = f"{quantized:f}"
-    whole, _, fraction = digits.partition(".")
-    if len(whole) > 3:
-        head, tail = whole[:-3], whole[-3:]
-        groups = []
-        while len(head) > 2:
-            groups.append(head[-2:])
-            head = head[:-2]
-        if head:
-            groups.append(head)
-        whole = ",".join(reversed(groups)) + "," + tail
-    return f"{sign}\u20b9{whole}.{fraction}"
 
 
 def print_report(evaluation, results) -> None:
