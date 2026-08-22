@@ -1,0 +1,90 @@
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+
+from pydantic import BaseModel, Field
+
+from app.models.transaction import TransactionResult
+
+
+class ReconciliationResultModel(BaseModel):
+    transaction_id: str
+    status: str
+    confidence: float
+    expected_amount: float
+    actual_amount: float | None
+    fee: float | None
+    tax: float | None
+    variance: float
+    exception_type: str
+    reason: str
+    recommendation: str
+    match_method: str
+    related_records: list[str] = Field(default_factory=list)
+
+
+class ServiceInfoModel(BaseModel):
+    service: str
+    version: str
+    app_env: str
+    endpoints: list[str]
+
+
+class BatchModel(BaseModel):
+    id: str
+    name: str
+    status: str
+    orders_count: int
+    payments_count: int
+    settlements_count: int
+    refunds_count: int
+    has_ground_truth: bool
+    elapsed_seconds: float | None = None
+    created_at: datetime
+    reconciled_at: datetime | None = None
+
+
+class MetricsModel(BaseModel):
+    batch_id: str
+    status: str
+    total_records: int = 0
+    matched_records: int = 0
+    exception_records: int = 0
+    match_rate: float = 0.0
+    matching_precision: float | None = None
+    exception_recall: float | None = None
+    false_match_rate: float | None = None
+    total_expected_amount: float = 0.0
+    reconciled_amount: float = 0.0
+    unresolved_amount: float = 0.0
+    elapsed_seconds: float = 0.0
+    throughput_per_second: float = 0.0
+    evaluated_against_ground_truth: bool = False
+
+
+class ExceptionsPageModel(BaseModel):
+    total: int
+    items: list[ReconciliationResultModel] = Field(default_factory=list)
+
+
+def to_result_model(result: TransactionResult) -> ReconciliationResultModel:
+    return ReconciliationResultModel(
+        transaction_id=result.transaction_id,
+        status=result.status,
+        confidence=result.confidence,
+        expected_amount=float(result.expected_amount),
+        actual_amount=float(result.actual_amount) if result.actual_amount is not None else None,
+        fee=float(result.fee) if result.fee is not None else None,
+        tax=float(result.tax) if result.tax is not None else None,
+        variance=float(result.variance),
+        exception_type=result.exception_type.value,
+        reason=result.reason,
+        recommendation=result.recommendation,
+        match_method=result.match_method,
+        related_records=list(result.related_records),
+    )
+
+
+def money(value: Decimal | None) -> float | None:
+    return float(value) if value is not None else None

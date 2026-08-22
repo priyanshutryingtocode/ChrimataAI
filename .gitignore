@@ -1,1 +1,21 @@
-/venv
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+
+# Environment variables
+.env
+
+# Generated datasets
+backend/data/generated/
+backend/data/ground_truth/
+backend/data/batches/
+backend/data/*.db
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+
+.pytest_cache
