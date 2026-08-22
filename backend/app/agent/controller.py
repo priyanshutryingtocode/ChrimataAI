@@ -182,7 +182,7 @@ def _ask_gemini(question: str, context_pack: dict) -> ControllerAnswer | None:
             confirmed_facts=parsed.confirmed_facts,
             probable_explanations=parsed.probable_explanations,
             recommendations=parsed.recommendations,
-            cited_transactions=_valid_citations(parsed.cited_transaction_ids, context_pack),
+            cited_transactions=_valid_citations(parsed.cited_transaction_ids, context_pack, parsed.answer),
             source="gemini",
         )
     except Exception:
@@ -190,12 +190,16 @@ def _ask_gemini(question: str, context_pack: dict) -> ControllerAnswer | None:
         return None
 
 
-def _valid_citations(candidates: list[str], context_pack: dict) -> list[str]:
+def _valid_citations(candidates: list[str], context_pack: dict, answer_text: str = "") -> list[str]:
     known = {item["transaction_id"] for item in context_pack["mentioned_transactions"] if item.get("found")}
     known.update(item["transaction_id"] for item in context_pack["top_exceptions_by_variance"])
     valid: list[str] = []
     for candidate in candidates:
         normalized = candidate.strip().upper()
+        if normalized in known and normalized not in valid:
+            valid.append(normalized)
+    for match in TRANSACTION_ID_PATTERN.findall(answer_text or ""):
+        normalized = match.upper()
         if normalized in known and normalized not in valid:
             valid.append(normalized)
     return valid

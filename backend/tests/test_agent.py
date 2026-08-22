@@ -38,6 +38,18 @@ def test_extract_transaction_ids():
     assert extract_transaction_ids("nothing here") == []
 
 
+def test_valid_citations_extracts_known_ids_from_answer_text():
+    from app.agent.controller import _valid_citations
+
+    pack = {
+        "mentioned_transactions": [{"transaction_id": "PAY-00001", "found": True}],
+        "top_exceptions_by_variance": [],
+    }
+    assert _valid_citations([], pack, "The answer concerns PAY-00001.") == ["PAY-00001"]
+    assert _valid_citations(["PAY-99999"], pack, "") == []
+    assert _valid_citations(["pay-00001"], pack, "") == ["PAY-00001"]
+
+
 def test_query_unknown_batch_404(client):
     response = client.post(
         "/api/controller/query", json={"batch_id": "missing", "question": "How many?"}
