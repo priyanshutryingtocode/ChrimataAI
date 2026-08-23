@@ -59,12 +59,12 @@ export default function App() {
       <header className="border-b border-zinc-800 bg-zinc-950/90 px-6 py-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <h1 className="text-lg font-bold tracking-widest text-zinc-100">
-            AI FINANCE CONTROLLER
+            Chrimata - Finance Controller
             <span className="ml-3 rounded bg-zinc-800 px-2 py-0.5 align-middle font-mono text-[10px] font-normal text-emerald-400">
               RAZORPAY BUILDATHON · TRACK 04
             </span>
           </h1>
-          <span className="font-mono text-[11px] text-zinc-600">deterministic core · LLM assist</span>
+          <span className="font-mono text-[11px] text-zinc-600">made by Priyanshu Srivastava</span>
         </div>
       </header>
 

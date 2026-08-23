@@ -1,4 +1,4 @@
-# AI Finance Controller
+# Chrimata AI - Finance Controller
 
 Deterministic payments reconciliation with an LLM-grounded assistant. Built for the
 Razorpay Buildathon Track 04.

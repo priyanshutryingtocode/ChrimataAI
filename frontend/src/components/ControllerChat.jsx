@@ -109,8 +109,8 @@ export default function ControllerChat({ batchId }) {
 
   return (
     <section className="flex min-h-80 flex-1 flex-col rounded-xl bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
-      <h2 className="text-sm font-semibold tracking-wide text-zinc-400 uppercase">AI Controller</h2>
-      <div ref={scrollRef} className="mt-3 flex-1 space-y-2 overflow-y-auto pr-1 max-h-[420px]">
+      <h2 className="text-sm font-semibold tracking-wide text-zinc-400 uppercase">Chrimata AI</h2>
+      <div ref={scrollRef} className="mt-3 flex-1 space-y-2 overflow-y-auto pr-1 max-h-105">
         {messages.length === 0 && (
           <p className="text-xs leading-relaxed text-zinc-600">
             Ask about this batch. Answers come from stored reconciliation results only.
@@ -125,7 +125,7 @@ export default function ControllerChat({ batchId }) {
             <AssistantMessage key={index} message={message} />
           ),
         )}
-        {busy && <p className="text-[11px] text-zinc-600 animate-pulse">Controller is thinking…</p>}
+        {busy && <p className="text-[11px] text-zinc-600 animate-pulse">Chrimata is thinking…</p>}
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1">
