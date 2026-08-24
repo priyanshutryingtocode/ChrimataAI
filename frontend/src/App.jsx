@@ -13,6 +13,7 @@ export default function App() {
   const [metrics, setMetrics] = useState(null)
   const [error, setError] = useState(null)
   const [selectedResult, setSelectedResult] = useState(null)
+  const [resolutionVersion, setResolutionVersion] = useState(0)
 
   const refreshBatches = useCallback(async () => {
     try {
@@ -42,6 +43,15 @@ export default function App() {
     loadMetrics(selectedId)
     setSelectedResult(null)
   }, [selectedId, loadMetrics])
+
+  const handleResolutionChanged = useCallback(() => {
+    setResolutionVersion((version) => version + 1)
+  }, [])
+
+  useEffect(() => {
+    if (!selectedId) return
+    loadMetrics(selectedId)
+  }, [resolutionVersion, selectedId, loadMetrics])
 
   function handleUploaded(batch) {
     setSelectedId(batch.id)
@@ -89,11 +99,22 @@ export default function App() {
         <section className="space-y-4">
           <StatsCards metrics={metrics} />
           <MetricsBar metrics={metrics} />
-          {metrics && <ResultsTable batchId={selectedId} onSelectRow={setSelectedResult} />}
+          {metrics && (
+            <ResultsTable
+              batchId={selectedId}
+              onSelectRow={setSelectedResult}
+              resolutionVersion={resolutionVersion}
+            />
+          )}
         </section>
       </main>
 
-      <ExceptionExplorer result={selectedResult} onClose={() => setSelectedResult(null)} />
+      <ExceptionExplorer
+        result={selectedResult}
+        batchId={selectedId}
+        onClose={() => setSelectedResult(null)}
+        onDecided={handleResolutionChanged}
+      />
     </div>
   )
 }

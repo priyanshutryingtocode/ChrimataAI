@@ -66,3 +66,34 @@ export function controllerQuery(batchId, question) {
     body: JSON.stringify({ batch_id: batchId, question }),
   })
 }
+
+export function getEvidence(batchId, transactionId) {
+  return request(`/api/batches/${batchId}/exceptions/${transactionId}/evidence`)
+}
+
+export function createProposal(batchId, transactionId, useLlm = true) {
+  return request(`/api/batches/${batchId}/exceptions/${transactionId}/proposal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ use_llm: useLlm }),
+  })
+}
+
+export function decideResolution(batchId, transactionId, { decision, approvedAmount, approvedBy, note }) {
+  const payload = { decision, approved_by: approvedBy || 'dashboard-user', note: note || '' }
+  if (approvedAmount !== null && approvedAmount !== undefined && approvedAmount !== '') {
+    payload.approved_amount = Number(approvedAmount)
+  }
+  return request(`/api/batches/${batchId}/exceptions/${transactionId}/resolution`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function listResolutions(batchId, { status, transactionId, limit = 200 } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (status) params.set('status', status)
+  if (transactionId) params.set('transaction_id', transactionId)
+  return request(`/api/batches/${batchId}/resolutions?${params.toString()}`)
+}

@@ -140,12 +140,9 @@ def _detail_to_dict(detail: tools.TransactionDetail) -> dict:
 
 
 def _get_gemini_client():
-    api_key = settings.llm_api_key.strip()
-    if not api_key:
-        return None
-    from google import genai
+    from app.agent.llm import get_gemini_client
 
-    return genai.Client(api_key=api_key)
+    return get_gemini_client()
 
 
 def _ask_gemini(question: str, context_pack: dict) -> ControllerAnswer | None:

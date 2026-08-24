@@ -9,7 +9,20 @@ const TABS = [
   { key: 'EXCEPTION', label: 'Exceptions' },
 ]
 
-export default function ResultsTable({ batchId, onSelectRow }) {
+function ResolutionDot({ resolution }) {
+  if (!resolution) return <span className="text-zinc-700" title="No resolution activity">—</span>
+  if (resolution.workflow_status === 'RESOLVED') {
+    return (
+      <span
+        title={`Workflow ${resolution.workflow_status} · financial ${resolution.financial_status}`}
+        className={`inline-block h-2 w-2 rounded-full ${resolution.financial_status === 'RECONCILED' ? 'bg-emerald-400' : 'bg-amber-400'}`}
+      />
+    )
+  }
+  return <span title="Proposal pending" className="inline-block h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+}
+
+export default function ResultsTable({ batchId, onSelectRow, resolutionVersion }) {
   const [tab, setTab] = useState('')
   const [offset, setOffset] = useState(0)
   const [data, setData] = useState({ total: 0, items: [] })
@@ -34,7 +47,7 @@ export default function ResultsTable({ batchId, onSelectRow }) {
     return () => {
       cancelled = true
     }
-  }, [batchId, tab, offset])
+  }, [batchId, tab, offset, resolutionVersion])
 
   function changeTab(key) {
     setTab(key)
@@ -71,6 +84,7 @@ export default function ResultsTable({ batchId, onSelectRow }) {
             <tr className="border-y border-zinc-800 bg-zinc-950/50 text-[11px] uppercase tracking-wide text-zinc-500">
               <th className="px-4 py-2 font-medium">Transaction</th>
               <th className="px-3 py-2 font-medium">Status</th>
+              <th className="px-3 py-2 font-medium">Res.</th>
               <th className="px-3 py-2 font-medium">Type</th>
               <th className="px-3 py-2 font-medium text-right">Expected (gross)</th>
               <th className="px-3 py-2 font-medium text-right">Deductions</th>
@@ -82,14 +96,14 @@ export default function ResultsTable({ batchId, onSelectRow }) {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-xs text-zinc-600">
+                <td colSpan={9} className="px-4 py-8 text-center text-xs text-zinc-600">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && data.items.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-xs text-zinc-600">
+                <td colSpan={9} className="px-4 py-8 text-center text-xs text-zinc-600">
                   No records.
                 </td>
               </tr>
@@ -109,6 +123,9 @@ export default function ResultsTable({ batchId, onSelectRow }) {
                     <td className="px-4 py-2 font-mono text-xs">{row.transaction_id}</td>
                     <td className="px-3 py-2">
                       <StatusPill status={row.status} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <ResolutionDot resolution={row.resolution} />
                     </td>
                     <td className="px-3 py-2">
                       <TypeBadge type={row.exception_type} />

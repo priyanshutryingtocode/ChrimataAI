@@ -17,13 +17,22 @@ from app.api.schemas import (
     ControllerQueryRequest,
     ExceptionsPageModel,
     MetricsModel,
+    ProposalRequestModel,
     ReconciliationResultModel,
+    ResolutionDecisionModel,
+    ResolutionRecordModel,
     ServiceInfoModel,
+    WorkflowMetricsModel,
 )
 from app.agent.controller import run_controller_query
+from app.agent.investigation import build_evidence_pack
+from app.agent.proposal import create_proposal as _create_proposal
+from app.core.batchfiles import generated_dir as _generated_dir
+from app.core.batchfiles import ground_truth_file as _ground_truth_file
 from app.core.config import DATA_DIR, settings
 from app.core.database import get_db
-from app.models.batch import Batch, TransactionResultRow, utc_now
+from app.core.resolutions import ResolutionError, decide_proposal, effective_states, workflow_metrics
+from app.models.batch import Batch, ResolutionRecord, TransactionResultRow, utc_now
 from app.reconciliation.engine import run_reconciliation
 from app.reconciliation.exceptions import ExceptionType
 from app.reconciliation.metrics import evaluate
@@ -31,7 +40,6 @@ from app.reconciliation.normalize import load_ground_truth, load_source_data
 
 router = APIRouter()
 
-BATCH_DATA_ROOT = DATA_DIR / "batches"
 REQUIRED_COLUMNS: dict[str, list[str]] = {
     "orders": ["order_id", "customer_id", "customer_name", "order_amount", "currency", "order_date"],
     "payments": ["payment_id", "order_id", "customer_id", "amount", "currency", "payment_date", "payment_status"],
@@ -53,7 +61,7 @@ REQUIRED_COLUMNS: dict[str, list[str]] = {
 def service_info() -> ServiceInfoModel:
     return ServiceInfoModel(
         service="AI Finance Controller",
-        version="0.3.0",
+        version="0.5.0",
         app_env=settings.app_env,
         endpoints=[
             "/",
@@ -65,6 +73,10 @@ def service_info() -> ServiceInfoModel:
             "/api/batches/{batch_id}/metrics",
             "/api/batches/{batch_id}/results",
             "/api/batches/{batch_id}/exceptions",
+            "/api/batches/{batch_id}/exceptions/{transaction_id}/evidence",
+            "/api/batches/{batch_id}/exceptions/{transaction_id}/proposal",
+            "/api/batches/{batch_id}/exceptions/{transaction_id}/resolution",
+            "/api/batches/{batch_id}/resolutions",
             "/api/controller/query",
         ],
     )
@@ -98,18 +110,6 @@ def controller_query(payload: ControllerQueryRequest, db: Session = Depends(get_
         cited_transactions=answer.cited_transactions,
         source=answer.source,
     )
-
-
-def _batch_dir(batch_id: str) -> Path:
-    return BATCH_DATA_ROOT / batch_id
-
-
-def _generated_dir(batch_id: str) -> Path:
-    return _batch_dir(batch_id) / "generated"
-
-
-def _ground_truth_file(batch_id: str) -> Path:
-    return _batch_dir(batch_id) / "ground_truth" / "ground_truth.csv"
 
 
 def _save_upload(upload: UploadFile, destination: Path, required_columns: list[str]) -> int:
@@ -356,7 +356,7 @@ def get_metrics(batch_id: str, db: Session = Depends(get_db)) -> MetricsModel:
             }
         )
 
-    return MetricsModel(**payload)
+    return MetricsModel(**payload, workflow=WorkflowMetricsModel(**workflow_metrics(db, batch_id)))
 
 
 @router.get("/api/batches/{batch_id}/results", response_model=ExceptionsPageModel)
@@ -388,7 +388,7 @@ def get_results(
         .limit(limit)
     ).all()
 
-    return ExceptionsPageModel(total=total, items=[_row_to_result_model(row) for row in rows])
+    return ExceptionsPageModel(total=total, items=_attach_resolutions(db, batch_id, rows))
 
 
 @router.get("/api/batches/{batch_id}/exceptions", response_model=ExceptionsPageModel)
@@ -417,4 +417,143 @@ def get_exceptions(
         .limit(limit)
     ).all()
 
-    return ExceptionsPageModel(total=total, items=[_row_to_result_model(row) for row in rows])
+    return ExceptionsPageModel(total=total, items=_attach_resolutions(db, batch_id, rows))
+
+
+def _attach_resolutions(db: Session, batch_id: str, rows) -> list[ReconciliationResultModel]:
+    states = effective_states(db, batch_id)
+    items = [_row_to_result_model(row) for row in rows]
+    for item in items:
+        state = states.get(item.transaction_id)
+        if state is not None:
+            item.resolution = state
+    return items
+
+
+def _resolution_to_model(record: ResolutionRecord) -> ResolutionRecordModel:
+    return ResolutionRecordModel(
+        id=record.id,
+        batch_id=record.batch_id,
+        transaction_id=record.transaction_id,
+        exception_type=record.exception_type,
+        proposal_kind=record.proposal_kind,
+        rationale=record.rationale,
+        evidence_snapshot=json.loads(record.evidence_snapshot or "{}"),
+        variance_amount=float(record.variance_amount) if record.variance_amount is not None else None,
+        proposed_amount=float(record.proposed_amount) if record.proposed_amount is not None else None,
+        approved_amount=float(record.approved_amount) if record.approved_amount is not None else None,
+        reconciled_adjustment_amount=(
+            float(record.reconciled_adjustment_amount) if record.reconciled_adjustment_amount is not None else None
+        ),
+        workflow_status=record.workflow_status,
+        financial_status=record.financial_status,
+        proposed_by=record.proposed_by,
+        approved_by=record.approved_by,
+        human_note=record.human_note,
+        audit=json.loads(record.audit_json or "[]"),
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        resolved_at=record.resolved_at,
+    )
+
+
+@router.get("/api/batches/{batch_id}/exceptions/{transaction_id}/evidence")
+def get_evidence(batch_id: str, transaction_id: str, db: Session = Depends(get_db)) -> dict:
+    _get_batch_or_404(db, batch_id)
+    normalized = transaction_id.strip().upper()
+    record = db.scalar(
+        select(ResolutionRecord)
+        .where(ResolutionRecord.batch_id == batch_id)
+        .where(ResolutionRecord.transaction_id == normalized)
+        .order_by(ResolutionRecord.created_at.desc())
+        .limit(1)
+    )
+    if record is not None:
+        return {
+            "source": "snapshot",
+            "proposal_id": record.id,
+            "captured_at": record.created_at.isoformat(),
+            "evidence": json.loads(record.evidence_snapshot or "{}"),
+        }
+    evidence = build_evidence_pack(db, batch_id, normalized)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail=f"Exception {normalized} not found in batch {batch_id}")
+    return {"source": "live", "proposal_id": None, "captured_at": utc_now().isoformat(), "evidence": evidence}
+
+
+@router.post("/api/batches/{batch_id}/exceptions/{transaction_id}/proposal", response_model=ResolutionRecordModel)
+def create_exception_proposal(
+    batch_id: str,
+    transaction_id: str,
+    payload: ProposalRequestModel | None = None,
+    db: Session = Depends(get_db),
+) -> ResolutionRecordModel:
+    batch = _get_batch_or_404(db, batch_id)
+    if batch.status != "RECONCILED":
+        raise HTTPException(status_code=409, detail=f"Batch {batch_id} has not been reconciled")
+
+    from app.agent.proposal import get_active_proposal
+
+    normalized = transaction_id.strip().upper()
+    if get_active_proposal(db, batch_id, normalized) is not None:
+        raise HTTPException(status_code=409, detail=f"Exception {normalized} already has an active proposal")
+
+    use_llm = payload.use_llm if payload is not None else True
+    record = _create_proposal(db, batch_id, normalized, use_llm=use_llm)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Exception {normalized} not found in batch {batch_id}")
+    return _resolution_to_model(record)
+
+
+@router.post("/api/batches/{batch_id}/exceptions/{transaction_id}/resolution", response_model=ResolutionRecordModel)
+def decide_exception_resolution(
+    batch_id: str,
+    transaction_id: str,
+    payload: ResolutionDecisionModel,
+    db: Session = Depends(get_db),
+) -> ResolutionRecordModel:
+    _get_batch_or_404(db, batch_id)
+    amount = (
+        Decimal(str(payload.approved_amount)).quantize(Decimal("0.01"))
+        if payload.approved_amount is not None
+        else None
+    )
+    try:
+        record = decide_proposal(
+            db,
+            batch_id,
+            transaction_id,
+            decision=payload.decision,
+            approved_amount=amount,
+            approved_by=payload.approved_by.strip() or "dashboard-user",
+            note=payload.note.strip(),
+        )
+    except ResolutionError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+    return _resolution_to_model(record)
+
+
+@router.get("/api/batches/{batch_id}/resolutions", response_model=list[ResolutionRecordModel])
+def list_resolutions(
+    batch_id: str,
+    status: str | None = Query(None),
+    transaction_id: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+) -> list[ResolutionRecordModel]:
+    _get_batch_or_404(db, batch_id)
+    filters = [ResolutionRecord.batch_id == batch_id]
+    if status is not None:
+        normalized = status.strip().upper()
+        if normalized not in ("PROPOSED", "RESOLVED", "REJECTED"):
+            raise HTTPException(status_code=422, detail=f"status must be PROPOSED, RESOLVED or REJECTED, got: {status}")
+        filters.append(ResolutionRecord.workflow_status == normalized)
+    if transaction_id is not None:
+        filters.append(ResolutionRecord.transaction_id == transaction_id.strip().upper())
+    records = db.scalars(
+        select(ResolutionRecord)
+        .where(*filters)
+        .order_by(ResolutionRecord.created_at.desc())
+        .limit(limit)
+    ).all()
+    return [_resolution_to_model(record) for record in records]
