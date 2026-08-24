@@ -23,6 +23,7 @@ def make_result(
         confidence=1.0,
         expected_amount=expected_amount,
         actual_amount=expected_amount - variance if status == "MATCHED" else expected_amount,
+        net_expected=expected_amount - variance if status == "MATCHED" else expected_amount,
         fee=Decimal("20.00"),
         tax=Decimal("3.60"),
         variance=variance,

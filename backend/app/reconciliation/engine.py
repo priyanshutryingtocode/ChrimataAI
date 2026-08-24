@@ -78,9 +78,15 @@ def _reconcile_payment(match: PaymentMatch) -> TransactionResult:
 
     refund_total = sum((refund.refund_amount for refund in match.valid_refunds), Decimal("0"))
     variance = Decimal("0")
+    net_expected = None
     if settlement is not None:
-        expected_net = payment.amount - refund_total - (settlement.processing_fee or Decimal("0")) - (settlement.tax or Decimal("0"))
-        variance = round_money(expected_net - settlement.net_amount)
+        net_expected = round_money(
+            payment.amount
+            - refund_total
+            - (settlement.processing_fee or Decimal("0"))
+            - (settlement.tax or Decimal("0"))
+        )
+        variance = round_money(net_expected - settlement.net_amount)
 
     return TransactionResult(
         transaction_id=payment.payment_id,
@@ -88,6 +94,7 @@ def _reconcile_payment(match: PaymentMatch) -> TransactionResult:
         confidence=match.confidence,
         expected_amount=payment.amount,
         actual_amount=settlement.net_amount if settlement else None,
+        net_expected=net_expected,
         fee=settlement.processing_fee if settlement else None,
         tax=settlement.tax if settlement else None,
         variance=variance,
@@ -162,6 +169,7 @@ def _reconcile_orphan(settlement: Settlement) -> TransactionResult:
         confidence=1.0,
         expected_amount=Decimal("0"),
         actual_amount=settlement.net_amount,
+        net_expected=None,
         fee=settlement.processing_fee,
         tax=settlement.tax,
         variance=round_money(settlement.net_amount),

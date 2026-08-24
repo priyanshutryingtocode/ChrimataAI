@@ -41,6 +41,7 @@ class TransactionResultRow(Base):
     confidence: Mapped[float] = mapped_column(Float)
     expected_amount: Mapped[object] = mapped_column(MoneyType, nullable=True)
     actual_amount: Mapped[object] = mapped_column(MoneyType, nullable=True)
+    net_expected: Mapped[object] = mapped_column(MoneyType, nullable=True)
     fee: Mapped[object] = mapped_column(MoneyType, nullable=True)
     tax: Mapped[object] = mapped_column(MoneyType, nullable=True)
     variance: Mapped[object] = mapped_column(MoneyType, nullable=True)

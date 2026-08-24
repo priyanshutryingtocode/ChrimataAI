@@ -28,11 +28,23 @@ export default function ExceptionExplorer({ result, onClose }) {
         <section className="rounded-lg bg-zinc-950 ring-1 ring-zinc-800 p-4">
           <div className="grid grid-cols-2 gap-3 font-mono text-sm tabular-nums">
             <div>
-              <p className="text-[11px] uppercase tracking-wide text-zinc-500">Expected</p>
+              <p className="text-[11px] uppercase tracking-wide text-zinc-500">Expected (gross)</p>
               <p className="text-zinc-200">{formatINR(result.expected_amount)}</p>
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-wide text-zinc-500">Actual</p>
+              <p className="text-[11px] uppercase tracking-wide text-zinc-500">Deductions</p>
+              <p className="text-zinc-400">
+                {result.net_expected === null || result.net_expected === undefined
+                  ? '—'
+                  : formatINR(Number(result.expected_amount) - Number(result.net_expected))}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-zinc-500">Net Expected</p>
+              <p className="text-zinc-200">{formatINR(result.net_expected)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-zinc-500">Settled</p>
               <p className="text-zinc-200">{formatINR(result.actual_amount)}</p>
             </div>
           </div>

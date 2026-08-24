@@ -103,6 +103,7 @@ def test_exact_match():
     assert result.confidence == 1.0
     assert result.variance == Decimal("0.00")
     assert result.expected_amount == Decimal("5000.00")
+    assert result.net_expected == result.actual_amount
     assert result.actual_amount == round_money(Decimal("5000") - expected_fee(Decimal("5000")) - expected_tax(expected_fee(Decimal("5000"))))
 
 
@@ -112,6 +113,7 @@ def test_missing_settlement():
     assert result.status == "EXCEPTION"
     assert result.exception_type == ExceptionType.MISSING_SETTLEMENT
     assert result.actual_amount is None
+    assert result.net_expected is None
 
 
 def test_amount_mismatch():
@@ -171,6 +173,8 @@ def test_valid_refund_deducted_matches():
     settlement = make_settlement(payment, net=payment.amount - expected_fee(payment.amount) - expected_tax(expected_fee(payment.amount)) - Decimal("500.00"))
     result = single_result(reconcile([payment], [settlement], refunds=[refund]))
     assert result.status == "MATCHED"
+    assert result.net_expected == result.actual_amount
+    assert result.net_expected == payment.amount - expected_fee(payment.amount) - expected_tax(expected_fee(payment.amount)) - Decimal("500.00")
 
 
 def test_pending_refund_ignored():

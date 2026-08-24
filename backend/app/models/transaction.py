@@ -64,6 +64,7 @@ class TransactionResult:
     confidence: float
     expected_amount: Decimal
     actual_amount: Decimal | None
+    net_expected: Decimal | None
     fee: Decimal | None
     tax: Decimal | None
     variance: Decimal

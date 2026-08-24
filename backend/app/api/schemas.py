@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
@@ -14,6 +13,7 @@ class ReconciliationResultModel(BaseModel):
     confidence: float
     expected_amount: float
     actual_amount: float | None
+    net_expected: float | None = None
     fee: float | None
     tax: float | None
     variance: float
@@ -82,25 +82,3 @@ class ControllerAnswerModel(BaseModel):
     key_figures: dict[str, str] = Field(default_factory=dict)
     cited_transactions: list[str] = Field(default_factory=list)
     source: str
-
-
-def to_result_model(result: TransactionResult) -> ReconciliationResultModel:
-    return ReconciliationResultModel(
-        transaction_id=result.transaction_id,
-        status=result.status,
-        confidence=result.confidence,
-        expected_amount=float(result.expected_amount),
-        actual_amount=float(result.actual_amount) if result.actual_amount is not None else None,
-        fee=float(result.fee) if result.fee is not None else None,
-        tax=float(result.tax) if result.tax is not None else None,
-        variance=float(result.variance),
-        exception_type=result.exception_type.value,
-        reason=result.reason,
-        recommendation=result.recommendation,
-        match_method=result.match_method,
-        related_records=list(result.related_records),
-    )
-
-
-def money(value: Decimal | None) -> float | None:
-    return float(value) if value is not None else None

@@ -72,55 +72,69 @@ export default function ResultsTable({ batchId, onSelectRow }) {
               <th className="px-4 py-2 font-medium">Transaction</th>
               <th className="px-3 py-2 font-medium">Status</th>
               <th className="px-3 py-2 font-medium">Type</th>
-              <th className="px-3 py-2 font-medium text-right">Expected</th>
-              <th className="px-3 py-2 font-medium text-right">Actual</th>
+              <th className="px-3 py-2 font-medium text-right">Expected (gross)</th>
+              <th className="px-3 py-2 font-medium text-right">Deductions</th>
+              <th className="px-3 py-2 font-medium text-right">Net Expected</th>
+              <th className="px-3 py-2 font-medium text-right">Settled</th>
               <th className="px-3 py-2 font-medium text-right">Variance</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-xs text-zinc-600">
+                <td colSpan={8} className="px-4 py-8 text-center text-xs text-zinc-600">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && data.items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-xs text-zinc-600">
+                <td colSpan={8} className="px-4 py-8 text-center text-xs text-zinc-600">
                   No records.
                 </td>
               </tr>
             )}
             {!loading &&
-              data.items.map((row) => (
-                <tr
-                  key={row.transaction_id}
-                  onClick={() => onSelectRow(row)}
-                  className="cursor-pointer border-b border-zinc-800/60 hover:bg-zinc-800/40"
-                >
-                  <td className="px-4 py-2 font-mono text-xs">{row.transaction_id}</td>
-                  <td className="px-3 py-2">
-                    <StatusPill status={row.status} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <TypeBadge type={row.exception_type} />
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono text-xs tabular-nums">
-                    {formatINR(row.expected_amount)}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-zinc-400">
-                    {formatINR(row.actual_amount)}
-                  </td>
-                  <td
-                    className={`px-3 py-2 text-right font-mono text-xs tabular-nums ${
-                      row.variance !== 0 ? 'text-amber-400' : 'text-zinc-500'
-                    }`}
+              data.items.map((row) => {
+                const deductions =
+                  row.net_expected === null || row.net_expected === undefined
+                    ? null
+                    : Number(row.expected_amount) - Number(row.net_expected)
+                return (
+                  <tr
+                    key={row.transaction_id}
+                    onClick={() => onSelectRow(row)}
+                    className="cursor-pointer border-b border-zinc-800/60 hover:bg-zinc-800/40"
                   >
-                    {formatINR(row.variance)}
-                  </td>
-                </tr>
-              ))}
+                    <td className="px-4 py-2 font-mono text-xs">{row.transaction_id}</td>
+                    <td className="px-3 py-2">
+                      <StatusPill status={row.status} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <TypeBadge type={row.exception_type} />
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-xs tabular-nums">
+                      {formatINR(row.expected_amount)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-zinc-500">
+                      {deductions === null ? '—' : formatINR(deductions)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-zinc-300">
+                      {formatINR(row.net_expected)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-zinc-400">
+                      {formatINR(row.actual_amount)}
+                    </td>
+                    <td
+                      className={`px-3 py-2 text-right font-mono text-xs tabular-nums ${
+                        row.variance !== 0 ? 'text-amber-400' : 'text-emerald-500/80'
+                      }`}
+                    >
+                      {formatINR(row.variance)}
+                    </td>
+                  </tr>
+                )
+              })}
           </tbody>
         </table>
       </div>

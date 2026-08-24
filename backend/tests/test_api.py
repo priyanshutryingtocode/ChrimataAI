@@ -77,6 +77,10 @@ def test_results_endpoint_filters_and_pagination(client):
 
     all_rows = client.get(f"/api/batches/{batch['id']}/results", params={"limit": 500}).json()
     assert all_rows["total"] == metrics["total_records"]
+    matched_sample = next(item for item in all_rows["items"] if item["status"] == "MATCHED")
+    assert "net_expected" in matched_sample
+    assert matched_sample["net_expected"] == pytest.approx(matched_sample["actual_amount"])
+    assert matched_sample["expected_amount"] - matched_sample["net_expected"] > 0
 
     matched_rows = client.get(f"/api/batches/{batch['id']}/results", params={"status": "MATCHED", "limit": 500}).json()
     assert matched_rows["total"] == metrics["matched_records"]
