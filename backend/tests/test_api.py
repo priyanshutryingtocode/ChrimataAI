@@ -114,6 +114,41 @@ def test_reconcile_unknown_batch_returns_404(client):
     assert client.post("/api/batches/deadbeef/reconcile").status_code == 404
 
 
+def test_health_reports_db_status(client):
+    response = client.get("/health")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["db"] == "up"
+    assert body["status"] == "ok"
+
+
+def test_health_returns_503_when_db_down(client, monkeypatch):
+    from app.core import database as db_module
+
+    def boom(*_args, **_kwargs):
+        raise Exception("db offline")
+
+    monkeypatch.setattr(db_module.engine, "connect", boom)
+    response = client.get("/health")
+    assert response.status_code == 503
+    assert response.json()["db"] == "down"
+
+
+def test_razorpay_adapter_stub_requires_credentials(monkeypatch):
+    from app.adapters.razorpay import RazorpayAdapter
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "razorpay_key_id", "")
+    monkeypatch.setattr(settings, "razorpay_key_secret", "")
+    adapter = RazorpayAdapter()
+    assert adapter.validate_credentials() is False
+    try:
+        adapter.fetch()
+        assert False, "expected NotImplementedError"
+    except NotImplementedError as exc:
+        assert "RAZORPAY_KEY_ID" in str(exc)
+
+
 def test_metrics_without_ground_truth(client):
     files = make_dataset_files(records=20, seed=7)
     files.pop("ground_truth")

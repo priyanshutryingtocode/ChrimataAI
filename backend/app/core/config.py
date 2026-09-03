@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = "gemini-2.5-flash"
     frontend_url: str = "http://localhost:5173"
+    razorpay_key_id: str = ""
+    razorpay_key_secret: str = ""
 
 
 settings = Settings()

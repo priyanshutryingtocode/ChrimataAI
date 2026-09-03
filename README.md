@@ -10,23 +10,13 @@ explains exceptions and answers questions — but only from stored reconciliatio
 results, never by recomputing money.
 
 ```
-Orders + Payments + Settlements + Refunds
-        |
-        v
-Data Normalization            (Decimal money, ISO dates)
-        |
-        v
-Deterministic Reconciliation Engine   <- no LLM anywhere near this box
-        |                    ID match -> financial verify -> duplicates ->
-        |                    exception classification
-        v
-Evaluation vs Ground Truth    (precision, recall, false-match rate)
-        |
-        v
-AI Controller                 (explanations + Q&A over structured results,
-        |                      deterministic fallback if the LLM is down)
-        v
-Dashboard                     (React + Vite + Tailwind)
+                      [Razorpay API → Adapter → SourceData] ─┐
+                                                             ↓
+Orders + Payments + Settlements + Refunds → Data Normalization → Deterministic Reconciliation Engine
+         (CSV upload)              (Decimal money, ISO dates)   (ID match → financial verify → duplicates → exception classification)
+                                                                 |
+                                                                 v
+                                                          Evaluation vs Ground Truth → AI Controller (grounded) → Dashboard
 ```
 
 ## Quickstart
@@ -114,6 +104,14 @@ Working templates with 100 seeded records live at `backend/data/generated/*.csv`
 | `GET  /api/batches/{id}/results?status=&limit=&offset=` | Paginated reconciliation rows |
 | `GET  /api/batches/{id}/exceptions?exception_type=` | Exception rows, variance-ordered |
 | `POST /api/controller/query` | Ask about a batch; structured answer with citations |
+| `GET /health` | DB-aware health — `{"status":"ok","db":"up"}` or `503 {"db":"down"}` |
+
+## Real-Data Adapters (stub)
+
+`backend/app/adapters/` provides a no-op bridge for live data without touching the deterministic core:
+
+* `adapters/base.py` — `RealDataAdapter.fetch(params) -> SourceData`
+* `adapters/razorpay.py` — `RazorpayAdapter` mapping `Order/Payment/Settlement/Refund → app.models.transaction.*` (Decimal money, `normalize_id`, `parse_money` invariants preserved). Requires `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` in `backend/.env`; without them `validate_credentials() is False` and `fetch()` raises `NotImplementedError` — the CSV path remains the source of truth.
 
 ## Evaluation metrics
 

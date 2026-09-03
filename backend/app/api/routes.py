@@ -83,8 +83,29 @@ def service_info() -> ServiceInfoModel:
 
 
 @router.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict:
+    from sqlalchemy import text
+
+    from app.core.database import engine
+
+    db_status = "up"
+    detail = None
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as exc:
+        db_status = "down"
+        detail = str(exc)[:300]
+
+    payload: dict[str, str | None] = {"status": "ok" if db_status == "up" else "degraded", "db": db_status}
+    if detail:
+        payload["detail"] = detail
+
+    if db_status == "down":
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(status_code=503, content=payload)
+    return payload
 
 
 @router.post("/api/controller/query", response_model=ControllerAnswerModel)
