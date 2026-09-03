@@ -61,6 +61,48 @@ Optional: set `LLM_API_KEY` (and optionally `LLM_MODEL`) in `backend/.env` to en
 live Gemini answers in the controller chat. Without a key everything still works via
 the deterministic fallback — the chat shows which source answered.
 
+## CSV Upload Format
+
+Upload via **Dashboard → Upload dataset** or `POST /api/batches/upload` (multipart `orders`, `payments`, `settlements`, `refunds`, `ground_truth`).
+
+| File field | Header — must be exactly this (lowercased check) | Required |
+|---|---|---|
+| `payments` | `payment_id,order_id,customer_id,amount,currency,payment_date,payment_status` | **Yes** |
+| `settlements` | `settlement_id,payment_id,settlement_date,gross_amount,processing_fee,tax,net_amount,currency` | **Yes** |
+| `orders` | `order_id,customer_id,customer_name,order_amount,currency,order_date` | No |
+| `refunds` | `refund_id,payment_id,refund_amount,refund_date,refund_status` | No |
+| `ground_truth` | `transaction_id,expected_status,exception_type,expected_settlement,actual_settlement,expected_variance,source_records` | No — without it `GET /metrics` returns `evaluated_against_ground_truth: false` |
+
+**Formatting rules** (validated in `reconciliation/normalize.py`): UTF-8, header row required, blank rows ignored. Amounts as `Decimal` like `47549.00` (commas/`₹` are stripped); dates as `YYYY-MM-DD`; currency as `INR` (uppercased, defaults to `INR`); IDs trimmed + uppercased.
+
+**Minimal examples — copy, save as `.csv`, and upload:**
+
+```csv
+# payments.csv
+payment_id,order_id,customer_id,amount,currency,payment_date,payment_status
+PAY-00001,ORD-00001,CUST-001,47549.00,INR,2026-06-12,captured
+```
+
+```csv
+# settlements.csv
+settlement_id,payment_id,settlement_date,gross_amount,processing_fee,tax,net_amount,currency
+SETL-00001,PAY-00001,2026-06-13,47549.00,950.98,171.18,46426.84,INR
+```
+
+```csv
+# orders.csv
+order_id,customer_id,customer_name,order_amount,currency,order_date
+ORD-00001,CUST-001,Aarav Sharma,47549.00,INR,2026-06-11
+```
+
+```csv
+# refunds.csv
+refund_id,payment_id,refund_amount,refund_date,refund_status
+REF-00001,PAY-00010,850.00,2026-06-13,processed
+```
+
+Working templates with 100 seeded records live at `backend/data/generated/*.csv` and `backend/data/ground_truth/ground_truth.csv` — generate your own with `python scripts/generate_data.py --records 100 --seed 42`.
+
 ## API
 
 | Endpoint | Purpose |
