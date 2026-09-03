@@ -12,6 +12,8 @@ from app.core.config import DATA_DIR, settings
 DATABASE_FILENAME = "controller.db"
 DEFAULT_DATABASE_URL = f"sqlite:///{(DATA_DIR / DATABASE_FILENAME).as_posix()}"
 
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 
 class Base(DeclarativeBase):
     pass
