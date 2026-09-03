@@ -1,5 +1,8 @@
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "")
+
 async function request(path, options = {}) {
-  const response = await fetch(path, options)
+  const url = `${API_BASE}${path}`
+  const response = await fetch(url, options)
   if (!response.ok) {
     let detail = `${response.status} ${response.statusText}`
     try {

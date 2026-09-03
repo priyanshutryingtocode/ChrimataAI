@@ -62,6 +62,7 @@ class ResolutionRecord(Base):
             "transaction_id",
             unique=True,
             sqlite_where=text("workflow_status = 'PROPOSED'"),
+            postgresql_where=text("workflow_status = 'PROPOSED'"),
         ),
     )
 
