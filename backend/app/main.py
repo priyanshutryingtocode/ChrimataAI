@@ -21,6 +21,12 @@ ALLOWED_ORIGINS = list(
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
+    try:
+        from app.core.seed import seed_demo_if_empty
+
+        seed_demo_if_empty()
+    except Exception:
+        pass
     yield
 
 
